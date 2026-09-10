@@ -10,7 +10,6 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import com.rubengarcia.choircorrector.api.CorrectorCoroApiClient
 import androidx.compose.ui.Alignment
