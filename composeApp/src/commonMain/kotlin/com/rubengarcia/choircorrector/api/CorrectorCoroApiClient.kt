@@ -1,96 +1,92 @@
 package com.rubengarcia.choircorrector.api
 
 import io.ktor.client.HttpClient
+import io.ktor.client.call.body
+import io.ktor.client.request.forms.MultiPartFormDataContent
+import io.ktor.client.request.forms.formData
 import io.ktor.client.request.post
 import io.ktor.client.request.setBody
-import io.ktor.client.statement.HttpResponse
+import io.ktor.client.request.get
+import io.ktor.client.statement.bodyAsText
 import io.ktor.http.ContentType
-import io.ktor.http.Headers
-import io.ktor.http.HttpHeaders
-import io.ktor.http.content.MultiPartFormDataContent
-import io.ktor.http.content.PartData
-import io.ktor.http.content.formData
-import java.io.File
+import io.ktor.http.HttpStatusCode
 
 class CorrectorCoroApiClient(
     private val baseUrl: String,
-    private val httpClient: HttpClient = HttpClient()
+    private val httpClient: HttpClient
 ) {
-    
-    suspend fun uploadAudioFiles(
-        referenceAudioFile: File,
-        rehearsalAudioFile: File
-    ): HttpResponse {
-        val referenceBytes = referenceAudioFile.readBytes()
-        val rehearsalBytes = rehearsalAudioFile.readBytes()
-        
-        return httpClient.post("$baseUrl/api/analyze") {
+
+    suspend fun uploadReference(
+        coroId: String,
+        fileName: String,
+        audioBytes: ByteArray
+    ) {
+        val response = httpClient.post("$baseUrl/coros/$coroId/referencia") {
             setBody(
                 MultiPartFormDataContent(
                     formData {
                         append(
-                            key = "reference_audio",
-                            value = referenceBytes,
-                            headers = Headers.build {
+                            "audio",
+                            audioBytes,
+                            headers = io.ktor.http.Headers.build {
                                 append(
-                                    HttpHeaders.ContentDisposition,
-                                    "form-data; name=\"reference_audio\"; filename=\"${referenceAudioFile.name}\""
+                                    io.ktor.http.HttpHeaders.ContentDisposition,
+                                    "form-data; name=\"audio\"; filename=\"$fileName\""
                                 )
-                                append(HttpHeaders.ContentType, ContentType.Audio.WAV)
-                            }
-                        )
-                        append(
-                            key = "rehearsal_audio",
-                            value = rehearsalBytes,
-                            headers = Headers.build {
                                 append(
-                                    HttpHeaders.ContentDisposition,
-                                    "form-data; name=\"rehearsal_audio\"; filename=\"${rehearsalAudioFile.name}\""
+                                    io.ktor.http.HttpHeaders.ContentType,
+                                    ContentType.Audio.Any.toString()
                                 )
-                                append(HttpHeaders.ContentType, ContentType.Audio.WAV)
                             }
                         )
                     }
                 )
             )
         }
+
+        check(response.status == HttpStatusCode.Created) {
+            "Reference upload failed: ${response.status} ${response.bodyAsText()}"
+        }
     }
-    
-    suspend fun uploadAudioFileBytes(
-        referenceAudioBytes: ByteArray,
-        rehearsalAudioBytes: ByteArray,
-        referenceFileName: String = "reference.wav",
-        rehearsalFileName: String = "rehearsal.wav"
-    ): HttpResponse {
-        return httpClient.post("$baseUrl/api/analyze") {
+
+    suspend fun uploadRehearsal(
+        coroId: String,
+        fileName: String,
+        audioBytes: ByteArray
+    ): String {
+        val response = httpClient.post("$baseUrl/coros/$coroId/ensayos") {
             setBody(
                 MultiPartFormDataContent(
                     formData {
                         append(
-                            key = "reference_audio",
-                            value = referenceAudioBytes,
-                            headers = Headers.build {
+                            "audio",
+                            audioBytes,
+                            headers = io.ktor.http.Headers.build {
                                 append(
-                                    HttpHeaders.ContentDisposition,
-                                    "form-data; name=\"reference_audio\"; filename=\"$referenceFileName\""
+                                    io.ktor.http.HttpHeaders.ContentDisposition,
+                                    "form-data; name=\"audio\"; filename=\"$fileName\""
                                 )
-                                append(HttpHeaders.ContentType, ContentType.Audio.WAV)
-                            }
-                        )
-                        append(
-                            key = "rehearsal_audio",
-                            value = rehearsalAudioBytes,
-                            headers = Headers.build {
                                 append(
-                                    HttpHeaders.ContentDisposition,
-                                    "form-data; name=\"rehearsal_audio\"; filename=\"$rehearsalFileName\""
+                                    io.ktor.http.HttpHeaders.ContentType,
+                                    ContentType.Audio.Any.toString()
                                 )
-                                append(HttpHeaders.ContentType, ContentType.Audio.WAV)
                             }
                         )
                     }
                 )
             )
         }
+
+        check(response.status == HttpStatusCode.Accepted) {
+            "Rehearsal upload failed: ${response.status} ${response.bodyAsText()}"
+        }
+
+        return response.bodyAsText()
     }
+
+    suspend fun getStatus(jobId: String): AnalysisStatusResponse =
+        httpClient.get("$baseUrl/ensayos/$jobId/estado").body()
+
+    suspend fun getResult(jobId: String): AnalysisResultResponse =
+        httpClient.get("$baseUrl/ensayos/$jobId/resultado").body()
 }
