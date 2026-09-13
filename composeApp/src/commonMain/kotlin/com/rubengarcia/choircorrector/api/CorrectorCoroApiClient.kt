@@ -10,6 +10,11 @@ import io.ktor.client.request.get
 import io.ktor.client.statement.bodyAsText
 import io.ktor.http.ContentType
 import io.ktor.http.HttpStatusCode
+import io.ktor.http.Headers
+import io.ktor.http.HttpHeaders
+import com.rubengarcia.choircorrector.AudioFile
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 class CorrectorCoroApiClient(
     private val baseUrl: String,
@@ -18,8 +23,7 @@ class CorrectorCoroApiClient(
 
     suspend fun uploadReference(
         coroId: String,
-        fileName: String,
-        audioBytes: ByteArray
+        audioFile: AudioFile
     ) {
         val response = httpClient.post("$baseUrl/coros/$coroId/referencia") {
             setBody(
@@ -27,18 +31,26 @@ class CorrectorCoroApiClient(
                     formData {
                         append(
                             "audio",
-                            audioBytes,
-                            headers = io.ktor.http.Headers.build {
+                            audioFile.sizeBytes,
+                            headers = Headers.build {
                                 append(
-                                    io.ktor.http.HttpHeaders.ContentDisposition,
-                                    "form-data; name=\"audio\"; filename=\"$fileName\""
+                                    HttpHeaders.ContentDisposition,
+                                    "form-data; name=\"audio\"; filename=\"${audioFile.fileName}\""
                                 )
                                 append(
-                                    io.ktor.http.HttpHeaders.ContentType,
+                                    HttpHeaders.ContentType,
                                     ContentType.Audio.Any.toString()
                                 )
                             }
-                        )
+                        ) {
+                            // Open stream on-demand and write directly to multipart body
+                            val stream = audioFile.streamProvider.openStream()
+                            try {
+                                stream.copyTo(this)
+                            } finally {
+                                stream.close()
+                            }
+                        }
                     }
                 )
             )
@@ -51,8 +63,7 @@ class CorrectorCoroApiClient(
 
     suspend fun uploadRehearsal(
         coroId: String,
-        fileName: String,
-        audioBytes: ByteArray
+        audioFile: AudioFile
     ): String {
         val response = httpClient.post("$baseUrl/coros/$coroId/ensayos") {
             setBody(
@@ -60,18 +71,26 @@ class CorrectorCoroApiClient(
                     formData {
                         append(
                             "audio",
-                            audioBytes,
-                            headers = io.ktor.http.Headers.build {
+                            audioFile.sizeBytes,
+                            headers = Headers.build {
                                 append(
-                                    io.ktor.http.HttpHeaders.ContentDisposition,
-                                    "form-data; name=\"audio\"; filename=\"$fileName\""
+                                    HttpHeaders.ContentDisposition,
+                                    "form-data; name=\"audio\"; filename=\"${audioFile.fileName}\""
                                 )
                                 append(
-                                    io.ktor.http.HttpHeaders.ContentType,
+                                    HttpHeaders.ContentType,
                                     ContentType.Audio.Any.toString()
                                 )
                             }
-                        )
+                        ) {
+                            // Open stream on-demand and write directly to multipart body
+                            val stream = audioFile.streamProvider.openStream()
+                            try {
+                                stream.copyTo(this)
+                            } finally {
+                                stream.close()
+                            }
+                        }
                     }
                 )
             )
