@@ -1,11 +1,9 @@
 package com.rubengarcia.choircorrector
 
+import io.ktor.utils.io.core.Input
+
 /**
  * Represents a streamable audio file without loading its contents into memory.
- *
- * @param fileName Display name of the audio file
- * @param sizeBytes Total size in bytes (nullable if size cannot be determined)
- * @param streamProvider Platform-specific provider that opens a fresh stream on demand
  */
 data class AudioFile(
     val fileName: String,
@@ -14,18 +12,13 @@ data class AudioFile(
 )
 
 /**
- * Platform-specific provider for opening audio file streams.
- * Must be thread-safe and allow multiple invocations to open fresh streams.
+ * Platform-specific provider for opening audio file inputs.
+ *
+ * Each invocation must return a fresh input positioned at the beginning
+ * of the audio file.
  */
 interface AudioStreamProvider {
-    /**
-     * Opens a fresh InputStream for the audio file.
-     * Caller is responsible for closing the returned stream.
-     *
-     * @return A new InputStream positioned at the start of the file
-     * @throws IOException if the stream cannot be opened
-     */
-    suspend fun openStream(): java.io.InputStream
+    fun openStream(): Input
 }
 
 interface AudioFileReader {

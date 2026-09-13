@@ -3,20 +3,26 @@ package com.rubengarcia.choircorrector
 import android.content.ContentResolver
 import android.net.Uri
 import android.provider.OpenableColumns
-import java.io.InputStream
+import io.ktor.utils.io.streams.asInput
 
 /**
  * Android implementation of AudioStreamProvider.
- * Opens fresh InputStreams from ContentResolver on demand without loading into memory.
+ *
+ * The underlying ContentResolver InputStream is opened only when the
+ * multipart upload asks for it. The audio contents are never loaded
+ * completely into memory.
  */
 class AndroidAudioStreamProvider(
     private val contentResolver: ContentResolver,
     private val uri: Uri
 ) : AudioStreamProvider {
 
-    override suspend fun openStream(): InputStream {
+    override fun openStream(): io.ktor.utils.io.core.Input {
         return contentResolver.openInputStream(uri)
-            ?: throw IllegalStateException("Unable to open stream for audio file: $uri")
+            ?.asInput()
+            ?: throw IllegalStateException(
+                "Unable to open stream for audio file: $uri"
+            )
     }
 }
 
@@ -27,25 +33,19 @@ class AndroidAudioFileReader(
     override suspend fun read(uri: String): AudioFile {
         val parsedUri = Uri.parse(uri)
 
-        // Get file name from ContentResolver metadata
         val fileName = getFileName(parsedUri)
-
-        // Get file size from ContentResolver metadata (without loading entire file)
         val sizeBytes = getFileSize(parsedUri)
-
-        // Create a stream provider that will open fresh streams on demand
-        val streamProvider = AndroidAudioStreamProvider(contentResolver, parsedUri)
 
         return AudioFile(
             fileName = fileName,
             sizeBytes = sizeBytes,
-            streamProvider = streamProvider
+            streamProvider = AndroidAudioStreamProvider(
+                contentResolver,
+                parsedUri
+            )
         )
     }
 
-    /**
-     * Query the file name from ContentResolver without loading the file.
-     */
     private fun getFileName(uri: Uri): String {
         return contentResolver.query(
             uri,
@@ -62,10 +62,6 @@ class AndroidAudioFileReader(
         } ?: "audio"
     }
 
-    /**
-     * Query the file size from ContentResolver without loading the file.
-     * Returns null if size cannot be determined.
-     */
     private fun getFileSize(uri: Uri): Long? {
         return contentResolver.query(
             uri,

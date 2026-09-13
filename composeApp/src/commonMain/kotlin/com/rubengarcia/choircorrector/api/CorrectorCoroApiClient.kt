@@ -1,20 +1,19 @@
 package com.rubengarcia.choircorrector.api
 
+import com.rubengarcia.choircorrector.AudioFile
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
+import io.ktor.client.request.forms.InputProvider
 import io.ktor.client.request.forms.MultiPartFormDataContent
 import io.ktor.client.request.forms.formData
+import io.ktor.client.request.get
 import io.ktor.client.request.post
 import io.ktor.client.request.setBody
-import io.ktor.client.request.get
 import io.ktor.client.statement.bodyAsText
 import io.ktor.http.ContentType
-import io.ktor.http.HttpStatusCode
 import io.ktor.http.Headers
 import io.ktor.http.HttpHeaders
-import com.rubengarcia.choircorrector.AudioFile
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
+import io.ktor.http.HttpStatusCode
 
 class CorrectorCoroApiClient(
     private val baseUrl: String,
@@ -31,26 +30,11 @@ class CorrectorCoroApiClient(
                     formData {
                         append(
                             "audio",
-                            audioFile.sizeBytes,
-                            headers = Headers.build {
-                                append(
-                                    HttpHeaders.ContentDisposition,
-                                    "form-data; name=\"audio\"; filename=\"${audioFile.fileName}\""
-                                )
-                                append(
-                                    HttpHeaders.ContentType,
-                                    ContentType.Audio.Any.toString()
-                                )
-                            }
-                        ) {
-                            // Open stream on-demand and write directly to multipart body
-                            val stream = audioFile.streamProvider.openStream()
-                            try {
-                                stream.copyTo(this)
-                            } finally {
-                                stream.close()
-                            }
-                        }
+                            InputProvider(audioFile.sizeBytes) {
+                                audioFile.streamProvider.openStream()
+                            },
+                            headers = audioHeaders(audioFile)
+                        )
                     }
                 )
             )
@@ -71,26 +55,11 @@ class CorrectorCoroApiClient(
                     formData {
                         append(
                             "audio",
-                            audioFile.sizeBytes,
-                            headers = Headers.build {
-                                append(
-                                    HttpHeaders.ContentDisposition,
-                                    "form-data; name=\"audio\"; filename=\"${audioFile.fileName}\""
-                                )
-                                append(
-                                    HttpHeaders.ContentType,
-                                    ContentType.Audio.Any.toString()
-                                )
-                            }
-                        ) {
-                            // Open stream on-demand and write directly to multipart body
-                            val stream = audioFile.streamProvider.openStream()
-                            try {
-                                stream.copyTo(this)
-                            } finally {
-                                stream.close()
-                            }
-                        }
+                            InputProvider(audioFile.sizeBytes) {
+                                audioFile.streamProvider.openStream()
+                            },
+                            headers = audioHeaders(audioFile)
+                        )
                     }
                 )
             )
@@ -108,4 +77,16 @@ class CorrectorCoroApiClient(
 
     suspend fun getResult(jobId: String): AnalysisResultResponse =
         httpClient.get("$baseUrl/ensayos/$jobId/resultado").body()
+
+    private fun audioHeaders(audioFile: AudioFile): Headers =
+        Headers.build {
+            append(
+                HttpHeaders.ContentDisposition,
+                "form-data; name=\"audio\"; filename=\"${audioFile.fileName}\""
+            )
+            append(
+                HttpHeaders.ContentType,
+                ContentType.Audio.Any.toString()
+            )
+        }
 }
