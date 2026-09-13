@@ -11,8 +11,6 @@ import io.ktor.client.request.post
 import io.ktor.client.request.setBody
 import io.ktor.client.statement.bodyAsText
 import io.ktor.http.ContentType
-import io.ktor.http.Headers
-import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
 
 class CorrectorCoroApiClient(
@@ -29,11 +27,12 @@ class CorrectorCoroApiClient(
                 MultiPartFormDataContent(
                     formData {
                         append(
-                            "audio",
-                            InputProvider(audioFile.sizeBytes) {
+                            name = "audio",
+                            provider = InputProvider(audioFile.sizeBytes) {
                                 audioFile.streamProvider.openStream()
                             },
-                            headers = audioHeaders(audioFile)
+                            filename = audioFile.fileName,
+                            contentType = ContentType.Audio.WAV
                         )
                     }
                 )
@@ -54,11 +53,12 @@ class CorrectorCoroApiClient(
                 MultiPartFormDataContent(
                     formData {
                         append(
-                            "audio",
-                            InputProvider(audioFile.sizeBytes) {
+                            name = "audio",
+                            provider = InputProvider(audioFile.sizeBytes) {
                                 audioFile.streamProvider.openStream()
                             },
-                            headers = audioHeaders(audioFile)
+                            filename = audioFile.fileName,
+                            contentType = ContentType.Audio.WAV
                         )
                     }
                 )
@@ -77,16 +77,4 @@ class CorrectorCoroApiClient(
 
     suspend fun getResult(jobId: String): AnalysisResultResponse =
         httpClient.get("$baseUrl/ensayos/$jobId/resultado").body()
-
-    private fun audioHeaders(audioFile: AudioFile): Headers =
-        Headers.build {
-            append(
-                HttpHeaders.ContentDisposition,
-                "form-data; name=\"audio\"; filename=\"${audioFile.fileName}\""
-            )
-            append(
-                HttpHeaders.ContentType,
-                ContentType.Audio.Any.toString()
-            )
-        }
 }
