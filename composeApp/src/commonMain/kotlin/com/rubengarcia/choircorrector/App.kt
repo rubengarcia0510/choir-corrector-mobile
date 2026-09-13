@@ -165,19 +165,22 @@ private fun NewAnalysisScreen(
                     uploadMessage = null
 
                     try {
+                        // Read reference metadata (no file content loaded yet)
                         val referenceFile = audioFileReader.read(reference)
-                        val rehearsalFile = audioFileReader.read(rehearsal)
 
+                        // Upload reference file with streaming (opens stream only during upload)
                         apiClient.uploadReference(
                             coroId = "demo",
-                            fileName = referenceFile.fileName,
-                            audioBytes = referenceFile.bytes
+                            audioFile = referenceFile
                         )
 
+                        // Read rehearsal metadata (no file content loaded yet)
+                        val rehearsalFile = audioFileReader.read(rehearsal)
+
+                        // Upload rehearsal file with streaming (opens stream only during upload)
                         jobId = apiClient.uploadRehearsal(
                             coroId = "demo",
-                            fileName = rehearsalFile.fileName,
-                            audioBytes = rehearsalFile.bytes
+                            audioFile = rehearsalFile
                         )
                         uploadMessage = "Audios enviados correctamente."
 
