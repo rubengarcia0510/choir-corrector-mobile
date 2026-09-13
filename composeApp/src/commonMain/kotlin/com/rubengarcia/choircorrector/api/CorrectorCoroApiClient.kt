@@ -13,8 +13,7 @@ import io.ktor.http.HttpStatusCode
 import io.ktor.http.Headers
 import io.ktor.http.HttpHeaders
 import com.rubengarcia.choircorrector.AudioFile
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
+import io.ktor.utils.io.ByteReadChannel
 
 class CorrectorCoroApiClient(
     private val baseUrl: String,
@@ -29,9 +28,17 @@ class CorrectorCoroApiClient(
             setBody(
                 MultiPartFormDataContent(
                     formData {
+                        // Open stream and convert to ByteReadChannel for Ktor
+                        val stream = audioFile.streamProvider.openStream()
+                        val channel = try {
+                            ByteReadChannel(stream)
+                        } finally {
+                            stream.close()
+                        }
+                        
                         append(
                             "audio",
-                            audioFile.sizeBytes,
+                            channel,
                             headers = Headers.build {
                                 append(
                                     HttpHeaders.ContentDisposition,
@@ -41,16 +48,12 @@ class CorrectorCoroApiClient(
                                     HttpHeaders.ContentType,
                                     ContentType.Audio.Any.toString()
                                 )
+                                // Include Content-Length if available
+                                audioFile.sizeBytes?.let {
+                                    append(HttpHeaders.ContentLength, it.toString())
+                                }
                             }
-                        ) {
-                            // Open stream on-demand and write directly to multipart body
-                            val stream = audioFile.streamProvider.openStream()
-                            try {
-                                stream.copyTo(this)
-                            } finally {
-                                stream.close()
-                            }
-                        }
+                        )
                     }
                 )
             )
@@ -69,9 +72,17 @@ class CorrectorCoroApiClient(
             setBody(
                 MultiPartFormDataContent(
                     formData {
+                        // Open stream and convert to ByteReadChannel for Ktor
+                        val stream = audioFile.streamProvider.openStream()
+                        val channel = try {
+                            ByteReadChannel(stream)
+                        } finally {
+                            stream.close()
+                        }
+                        
                         append(
                             "audio",
-                            audioFile.sizeBytes,
+                            channel,
                             headers = Headers.build {
                                 append(
                                     HttpHeaders.ContentDisposition,
@@ -81,16 +92,12 @@ class CorrectorCoroApiClient(
                                     HttpHeaders.ContentType,
                                     ContentType.Audio.Any.toString()
                                 )
+                                // Include Content-Length if available
+                                audioFile.sizeBytes?.let {
+                                    append(HttpHeaders.ContentLength, it.toString())
+                                }
                             }
-                        ) {
-                            // Open stream on-demand and write directly to multipart body
-                            val stream = audioFile.streamProvider.openStream()
-                            try {
-                                stream.copyTo(this)
-                            } finally {
-                                stream.close()
-                            }
-                        }
+                        )
                     }
                 )
             )
