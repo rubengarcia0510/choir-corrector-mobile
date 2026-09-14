@@ -9,6 +9,9 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import com.rubengarcia.choircorrector.api.CorrectorCoroApiClient
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
@@ -20,7 +23,9 @@ private enum class Screen {
 
 @Composable
 fun App(
-    audioFilePicker: AudioFilePicker
+    audioFilePicker: AudioFilePicker,
+    audioFileReader: AudioFileReader,
+    apiClient: CorrectorCoroApiClient
 ) {
     var screen by remember { mutableStateOf(Screen.HOME) }
 
@@ -37,6 +42,8 @@ fun App(
 
                 Screen.NEW_ANALYSIS -> NewAnalysisScreen(
                     audioFilePicker = audioFilePicker,
+                    audioFileReader = audioFileReader,
+                    apiClient = apiClient,
                     onBack = {
                         screen = Screen.HOME
                     }
@@ -79,10 +86,16 @@ private fun HomeScreen(
 @Composable
 private fun NewAnalysisScreen(
     audioFilePicker: AudioFilePicker,
+    audioFileReader: AudioFileReader,
+    apiClient: CorrectorCoroApiClient,
     onBack: () -> Unit
 ) {
     var referenceUri by remember { mutableStateOf<String?>(null) }
     var rehearsalUri by remember { mutableStateOf<String?>(null) }
+    var uploading by remember { mutableStateOf(false) }
+    var uploadMessage by remember { mutableStateOf<String?>(null) }
+    var jobId by remember { mutableStateOf<String?>(null) }
+    val scope = rememberCoroutineScope()
 
     Column(
         modifier = Modifier
@@ -138,8 +151,86 @@ private fun NewAnalysisScreen(
         }
 
         Button(
-            onClick = onBack,
+            onClick = {
+                val reference = referenceUri
+                val rehearsal = rehearsalUri
+
+                if (reference == null || rehearsal == null) {
+                    uploadMessage = "Seleccioná los dos audios."
+                    return@Button
+                }
+
+                scope.launch {
+                    uploading = true
+                    uploadMessage = null
+
+                    try {
+                        // Read reference metadata (no file content loaded yet)
+                        val referenceFile = audioFileReader.read(reference)
+
+                        // Upload reference file with streaming (opens stream only during upload)
+                        apiClient.uploadReference(
+                            coroId = "demo",
+                            audioFile = referenceFile
+                        )
+
+                        // Read rehearsal metadata (no file content loaded yet)
+                        val rehearsalFile = audioFileReader.read(rehearsal)
+
+                        // Upload rehearsal file with streaming (opens stream only during upload)
+                        jobId = apiClient.uploadRehearsal(
+                            coroId = "demo",
+                            audioFile = rehearsalFile
+                        )
+                        uploadMessage = "Audios enviados correctamente."
+
+                        var status = apiClient.getStatus(jobId!!)
+
+                        while (status.status == "PENDIENTE" || status.status == "PROCESANDO") {
+                            delay(2000)
+                            status = apiClient.getStatus(jobId!!)
+                        }
+
+                        if (status.status == "LISTO") {
+                            val result = apiClient.getResult(jobId!!)
+                            uploadMessage =
+                                "Análisis listo. Segmentos detectados: ${result.segments.size}"
+                        } else {
+                            uploadMessage = when (status.status) {
+                                "ERROR" -> "Error durante el análisis."
+                                else -> "Estado: ${status.status}"
+                            }
+                        }
+                    } catch (e: Exception) {
+                        uploadMessage = "Error al enviar los audios: ${e.message}"
+                    } finally {
+                        uploading = false
+                    }
+                }
+            },
+            enabled = !uploading,
             modifier = Modifier.padding(top = 24.dp)
+        ) {
+            Text(if (uploading) "Enviando..." else "Analizar")
+        }
+
+        uploadMessage?.let {
+            Text(
+                text = it,
+                modifier = Modifier.padding(top = 12.dp)
+            )
+        }
+
+        jobId?.let {
+            Text(
+                text = "Job ID: $it",
+                modifier = Modifier.padding(top = 8.dp)
+            )
+        }
+
+        Button(
+            onClick = onBack,
+            modifier = Modifier.padding(top = 16.dp)
         ) {
             Text("Volver")
         }
