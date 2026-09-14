@@ -3,7 +3,6 @@ package com.rubengarcia.choircorrector.api
 import com.rubengarcia.choircorrector.AudioFile
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
-import io.ktor.client.request.forms.InputProvider
 import io.ktor.client.request.forms.MultiPartFormDataContent
 import io.ktor.client.request.forms.formData
 import io.ktor.client.request.get
@@ -11,6 +10,8 @@ import io.ktor.client.request.post
 import io.ktor.client.request.setBody
 import io.ktor.client.statement.bodyAsText
 import io.ktor.http.ContentType
+import io.ktor.http.Headers
+import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
 
 class CorrectorCoroApiClient(
@@ -26,14 +27,22 @@ class CorrectorCoroApiClient(
             setBody(
                 MultiPartFormDataContent(
                     formData {
-                        append(
-                            name = "audio",
-                            provider = InputProvider(audioFile.sizeBytes) {
-                                audioFile.streamProvider.openStream()
+                        appendInput(
+                            key = "audio",
+                            headers = Headers.build {
+                                append(
+                                    HttpHeaders.ContentDisposition,
+                                    "filename=\"${audioFile.fileName}\""
+                                )
+                                append(
+                                    HttpHeaders.ContentType,
+                                    ContentType.parse("audio/wav").toString()
+                                )
                             },
-                            filename = audioFile.fileName,
-                            contentType = ContentType.Audio.WAV
-                        )
+                            size = audioFile.sizeBytes
+                        ) {
+                            audioFile.streamProvider.openStream()
+                        }
                     }
                 )
             )
@@ -52,14 +61,22 @@ class CorrectorCoroApiClient(
             setBody(
                 MultiPartFormDataContent(
                     formData {
-                        append(
-                            name = "audio",
-                            provider = InputProvider(audioFile.sizeBytes) {
-                                audioFile.streamProvider.openStream()
+                        appendInput(
+                            key = "audio",
+                            headers = Headers.build {
+                                append(
+                                    HttpHeaders.ContentDisposition,
+                                    "filename=\"${audioFile.fileName}\""
+                                )
+                                append(
+                                    HttpHeaders.ContentType,
+                                    ContentType.parse("audio/wav").toString()
+                                )
                             },
-                            filename = audioFile.fileName,
-                            contentType = ContentType.Audio.WAV
-                        )
+                            size = audioFile.sizeBytes
+                        ) {
+                            audioFile.streamProvider.openStream()
+                        }
                     }
                 )
             )
