@@ -18,7 +18,7 @@ class MainActivity : ComponentActivity() {
         audioFileReader = AndroidAudioFileReader(contentResolver)
 
         apiClient = CorrectorCoroApiClient(
-            baseUrl = "http://127.0.0.1:8080",
+            baseUrl = "https://corrector-coro.onrender.com",
             httpClient = createHttpClient()
         )
 
