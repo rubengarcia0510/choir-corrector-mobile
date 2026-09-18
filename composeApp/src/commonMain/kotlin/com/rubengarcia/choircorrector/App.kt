@@ -11,6 +11,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import com.rubengarcia.choircorrector.api.AnalysisResultResponse
 import com.rubengarcia.choircorrector.api.CorrectorCoroApiClient
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -95,6 +96,9 @@ private fun NewAnalysisScreen(
     var uploading by remember { mutableStateOf(false) }
     var uploadMessage by remember { mutableStateOf<String?>(null) }
     var jobId by remember { mutableStateOf<String?>(null) }
+    var analysisResult by remember {
+        mutableStateOf<AnalysisResultResponse?>(null)
+    }
     val scope = rememberCoroutineScope()
 
     Column(
@@ -163,6 +167,7 @@ private fun NewAnalysisScreen(
                 scope.launch {
                     uploading = true
                     uploadMessage = null
+                    analysisResult = null
 
                     try {
                         // Read reference metadata (no file content loaded yet)
@@ -192,9 +197,8 @@ private fun NewAnalysisScreen(
                         }
 
                         if (status.status == "LISTO") {
-                            val result = apiClient.getResult(jobId!!)
-                            uploadMessage =
-                                "Análisis listo. Segmentos detectados: ${result.segments.size}"
+                            analysisResult = apiClient.getResult(jobId!!)
+                            uploadMessage = "Análisis listo."
                         } else {
                             uploadMessage = when (status.status) {
                                 "ERROR" -> "Error durante el análisis."
@@ -221,6 +225,13 @@ private fun NewAnalysisScreen(
             )
         }
 
+        analysisResult?.let { result ->
+            AnalysisResultView(
+                result = result,
+                modifier = Modifier.padding(top = 20.dp)
+            )
+        }
+
         jobId?.let {
             Text(
                 text = "Job ID: $it",
@@ -236,3 +247,68 @@ private fun NewAnalysisScreen(
         }
     }
 }
+
+
+@Composable
+private fun AnalysisResultView(
+    result: AnalysisResultResponse,
+    modifier: Modifier = Modifier
+) {
+    Column(
+        modifier = modifier,
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Text(
+            text = "Resultado del análisis",
+            style = MaterialTheme.typography.titleLarge
+        )
+
+        Text(
+            text = "Segmentos detectados: ${result.segments.size}",
+            style = MaterialTheme.typography.bodyLarge,
+            modifier = Modifier.padding(top = 8.dp)
+        )
+
+        result.segments.forEachIndexed { index, segment ->
+            Column(
+                modifier = Modifier.padding(top = 16.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Text(
+                    text = "Segmento ${index + 1}",
+                    style = MaterialTheme.typography.titleMedium
+                )
+
+                Text(
+                    text = "Referencia: ${segment.startReferenceTimestampSec.roundToTenths()} - " +
+                        "${segment.endReferenceTimestampSec.roundToTenths()} s",
+                    modifier = Modifier.padding(top = 4.dp)
+                )
+
+                Text(
+                    text = "Ensayo: ${segment.startPerformanceTimestampSec.roundToTenths()} - " +
+                        "${segment.endPerformanceTimestampSec.roundToTenths()} s",
+                    modifier = Modifier.padding(top = 2.dp)
+                )
+
+                Text(
+                    text = "Desviación media: ${segment.meanDeviationCents.roundToTenths()} cents",
+                    modifier = Modifier.padding(top = 4.dp)
+                )
+
+                Text(
+                    text = "Desviación máxima: ${segment.maxDeviationCents.roundToTenths()} cents",
+                    modifier = Modifier.padding(top = 2.dp)
+                )
+
+                Text(
+                    text = "Severidad: ${segment.severity}",
+                    modifier = Modifier.padding(top = 2.dp)
+                )
+            }
+        }
+    }
+}
+
+private fun Double.roundToTenths(): String =
+    ((this * 10.0).toLong() / 10.0).toString()
