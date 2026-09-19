@@ -4,6 +4,9 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -79,7 +82,7 @@ private fun HomeScreen(
         Button(
             onClick = onNewAnalysis
         ) {
-            Text("Nuevo análisis")
+            Text("New analysis")
         }
     }
 }
@@ -109,12 +112,12 @@ private fun NewAnalysisScreen(
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Text(
-            text = "Nuevo análisis",
+            text = "New analysis",
             style = MaterialTheme.typography.headlineMedium
         )
 
         Text(
-            text = "Seleccioná los dos audios.",
+            text = "Select both audio files.",
             style = MaterialTheme.typography.bodyLarge,
             modifier = Modifier.padding(top = 8.dp, bottom = 24.dp)
         )
@@ -126,12 +129,12 @@ private fun NewAnalysisScreen(
                 }
             }
         ) {
-            Text("Seleccionar referencia")
+            Text("Select reference")
         }
 
         referenceUri?.let {
             Text(
-                text = "Referencia seleccionada",
+                text = "Reference selected",
                 modifier = Modifier.padding(top = 8.dp)
             )
         }
@@ -144,12 +147,12 @@ private fun NewAnalysisScreen(
             },
             modifier = Modifier.padding(top = 16.dp)
         ) {
-            Text("Seleccionar ensayo")
+            Text("Select rehearsal")
         }
 
         rehearsalUri?.let {
             Text(
-                text = "Ensayo seleccionado",
+                text = "Rehearsal selected",
                 modifier = Modifier.padding(top = 8.dp)
             )
         }
@@ -160,7 +163,7 @@ private fun NewAnalysisScreen(
                 val rehearsal = rehearsalUri
 
                 if (reference == null || rehearsal == null) {
-                    uploadMessage = "Seleccioná los dos audios."
+                    uploadMessage = "Select both audio files."
                     return@Button
                 }
 
@@ -187,7 +190,7 @@ private fun NewAnalysisScreen(
                             coroId = "demo",
                             audioFile = rehearsalFile
                         )
-                        uploadMessage = "Audios enviados correctamente."
+                        uploadMessage = "Audio files uploaded successfully."
 
                         var status = apiClient.getStatus(jobId!!)
 
@@ -198,15 +201,15 @@ private fun NewAnalysisScreen(
 
                         if (status.status == "LISTO") {
                             analysisResult = apiClient.getResult(jobId!!)
-                            uploadMessage = "Análisis listo."
+                            uploadMessage = "Analysis ready."
                         } else {
                             uploadMessage = when (status.status) {
-                                "ERROR" -> "Error durante el análisis."
-                                else -> "Estado: ${status.status}"
+                                "ERROR" -> "Analysis error."
+                                else -> "Status: ${status.status}"
                             }
                         }
                     } catch (e: Exception) {
-                        uploadMessage = "Error al enviar los audios: ${e.message}"
+                        uploadMessage = "Error uploading audio files: ${e.message}"
                     } finally {
                         uploading = false
                     }
@@ -215,7 +218,7 @@ private fun NewAnalysisScreen(
             enabled = !uploading,
             modifier = Modifier.padding(top = 24.dp)
         ) {
-            Text(if (uploading) "Enviando..." else "Analizar")
+            Text(if (uploading) "Uploading..." else "Analyze")
         }
 
         uploadMessage?.let {
@@ -228,7 +231,9 @@ private fun NewAnalysisScreen(
         analysisResult?.let { result ->
             AnalysisResultView(
                 result = result,
-                modifier = Modifier.padding(top = 20.dp)
+                modifier = Modifier
+                    .padding(top = 20.dp)
+                    .weight(1f)
             )
         }
 
@@ -243,7 +248,7 @@ private fun NewAnalysisScreen(
             onClick = onBack,
             modifier = Modifier.padding(top = 16.dp)
         ) {
-            Text("Volver")
+            Text("Back")
         }
     }
 }
@@ -255,56 +260,67 @@ private fun AnalysisResultView(
     modifier: Modifier = Modifier
 ) {
     Column(
-        modifier = modifier,
-        horizontalAlignment = Alignment.CenterHorizontally
+        modifier = modifier.fillMaxWidth()
     ) {
         Text(
-            text = "Resultado del análisis",
-            style = MaterialTheme.typography.titleLarge
+            text = "Analysis results",
+            style = MaterialTheme.typography.headlineMedium
         )
 
         Text(
-            text = "Segmentos detectados: ${result.segments.size}",
+            text = "Segments detected: ${result.segments.size}",
             style = MaterialTheme.typography.bodyLarge,
-            modifier = Modifier.padding(top = 8.dp)
+            modifier = Modifier.padding(top = 8.dp, bottom = 12.dp)
         )
 
-        result.segments.forEachIndexed { index, segment ->
-            Column(
-                modifier = Modifier.padding(top = 16.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                Text(
-                    text = "Segmento ${index + 1}",
-                    style = MaterialTheme.typography.titleMedium
-                )
+        LazyColumn(
+            modifier = Modifier
+                .fillMaxWidth()
+                .weight(1f)
+        ) {
+            itemsIndexed(result.segments) { index, segment ->
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 8.dp)
+                ) {
+                    Text(
+                        text = "Segment ${index + 1}",
+                        style = MaterialTheme.typography.titleMedium
+                    )
 
-                Text(
-                    text = "Referencia: ${segment.startReferenceTimestampSec.roundToTenths()} - " +
-                        "${segment.endReferenceTimestampSec.roundToTenths()} s",
-                    modifier = Modifier.padding(top = 4.dp)
-                )
+                    Text(
+                        text = "Reference: ${
+                            segment.startReferenceTimestampSec.roundToTenths()
+                        } - ${
+                            segment.endReferenceTimestampSec.roundToTenths()
+                        } s"
+                    )
 
-                Text(
-                    text = "Ensayo: ${segment.startPerformanceTimestampSec.roundToTenths()} - " +
-                        "${segment.endPerformanceTimestampSec.roundToTenths()} s",
-                    modifier = Modifier.padding(top = 2.dp)
-                )
+                    Text(
+                        text = "Rehearsal: ${
+                            segment.startPerformanceTimestampSec.roundToTenths()
+                        } - ${
+                            segment.endPerformanceTimestampSec.roundToTenths()
+                        } s"
+                    )
 
-                Text(
-                    text = "Desviación media: ${segment.meanDeviationCents.roundToTenths()} cents",
-                    modifier = Modifier.padding(top = 4.dp)
-                )
+                    Text(
+                        text = "Mean deviation: ${
+                            segment.meanDeviationCents.roundToTenths()
+                        } cents"
+                    )
 
-                Text(
-                    text = "Desviación máxima: ${segment.maxDeviationCents.roundToTenths()} cents",
-                    modifier = Modifier.padding(top = 2.dp)
-                )
+                    Text(
+                        text = "Maximum deviation: ${
+                            segment.maxDeviationCents.roundToTenths()
+                        } cents"
+                    )
 
-                Text(
-                    text = "Severidad: ${segment.severity}",
-                    modifier = Modifier.padding(top = 2.dp)
-                )
+                    Text(
+                        text = "Severity: ${segment.severity}"
+                    )
+                }
             }
         }
     }
