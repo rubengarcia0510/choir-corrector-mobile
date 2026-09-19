@@ -2,23 +2,39 @@ package com.rubengarcia.choircorrector
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material3.Button
+import androidx.compose.material3.Card
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
-import com.rubengarcia.choircorrector.api.CorrectorCoroApiClient
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.rubengarcia.choircorrector.api.AnalysisResultResponse
+import com.rubengarcia.choircorrector.api.CorrectorCoroApiClient
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 private enum class Screen {
     HOME,
     NEW_ANALYSIS
+}
+
+private enum class UploadPhase {
+    IDLE,
+    UPLOADING_REFERENCE,
+    UPLOADING_REHEARSAL,
+    ANALYZING,
+    ANALYSIS_READY
 }
 
 @Composable
@@ -78,7 +94,7 @@ private fun HomeScreen(
         Button(
             onClick = onNewAnalysis
         ) {
-            Text("Nuevo análisis")
+            Text("New analysis")
         }
     }
 }
@@ -92,25 +108,26 @@ private fun NewAnalysisScreen(
 ) {
     var referenceUri by remember { mutableStateOf<String?>(null) }
     var rehearsalUri by remember { mutableStateOf<String?>(null) }
-    var uploading by remember { mutableStateOf(false) }
+    var uploadPhase by remember { mutableStateOf(UploadPhase.IDLE) }
     var uploadMessage by remember { mutableStateOf<String?>(null) }
     var jobId by remember { mutableStateOf<String?>(null) }
+    var analysisResult by remember { mutableStateOf<AnalysisResultResponse?>(null) }
     val scope = rememberCoroutineScope()
+
+    val isBusy = uploadPhase != UploadPhase.IDLE && uploadPhase != UploadPhase.ANALYSIS_READY
 
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .padding(24.dp),
-        verticalArrangement = Arrangement.Center,
-        horizontalAlignment = Alignment.CenterHorizontally
+            .padding(24.dp)
     ) {
         Text(
-            text = "Nuevo análisis",
+            text = "New analysis",
             style = MaterialTheme.typography.headlineMedium
         )
 
         Text(
-            text = "Seleccioná los dos audios.",
+            text = "Select both audio files.",
             style = MaterialTheme.typography.bodyLarge,
             modifier = Modifier.padding(top = 8.dp, bottom = 24.dp)
         )
@@ -120,17 +137,21 @@ private fun NewAnalysisScreen(
                 audioFilePicker.pickAudio { uri ->
                     referenceUri = uri
                 }
-            }
+            },
+            enabled = !isBusy,
+            modifier = Modifier.fillMaxWidth()
         ) {
-            Text("Seleccionar referencia")
+            Text("Select reference")
         }
 
         referenceUri?.let {
             Text(
-                text = "Referencia seleccionada",
+                text = "Reference selected",
                 modifier = Modifier.padding(top = 8.dp)
             )
         }
+
+        Spacer(modifier = Modifier.height(12.dp))
 
         Button(
             onClick = {
@@ -138,80 +159,17 @@ private fun NewAnalysisScreen(
                     rehearsalUri = uri
                 }
             },
-            modifier = Modifier.padding(top = 16.dp)
+            enabled = !isBusy,
+            modifier = Modifier.fillMaxWidth()
         ) {
-            Text("Seleccionar ensayo")
+            Text("Select rehearsal")
         }
 
         rehearsalUri?.let {
             Text(
-                text = "Ensayo seleccionado",
+                text = "Rehearsal selected",
                 modifier = Modifier.padding(top = 8.dp)
             )
-        }
-
-        Button(
-            onClick = {
-                val reference = referenceUri
-                val rehearsal = rehearsalUri
-
-                if (reference == null || rehearsal == null) {
-                    uploadMessage = "Seleccioná los dos audios."
-                    return@Button
-                }
-
-                scope.launch {
-                    uploading = true
-                    uploadMessage = null
-
-                    try {
-                        // Read reference metadata (no file content loaded yet)
-                        val referenceFile = audioFileReader.read(reference)
-
-                        // Upload reference file with streaming (opens stream only during upload)
-                        apiClient.uploadReference(
-                            coroId = "demo",
-                            audioFile = referenceFile
-                        )
-
-                        // Read rehearsal metadata (no file content loaded yet)
-                        val rehearsalFile = audioFileReader.read(rehearsal)
-
-                        // Upload rehearsal file with streaming (opens stream only during upload)
-                        jobId = apiClient.uploadRehearsal(
-                            coroId = "demo",
-                            audioFile = rehearsalFile
-                        )
-                        uploadMessage = "Audios enviados correctamente."
-
-                        var status = apiClient.getStatus(jobId!!)
-
-                        while (status.status == "PENDIENTE" || status.status == "PROCESANDO") {
-                            delay(2000)
-                            status = apiClient.getStatus(jobId!!)
-                        }
-
-                        if (status.status == "LISTO") {
-                            val result = apiClient.getResult(jobId!!)
-                            uploadMessage =
-                                "Análisis listo. Segmentos detectados: ${result.segments.size}"
-                        } else {
-                            uploadMessage = when (status.status) {
-                                "ERROR" -> "Error durante el análisis."
-                                else -> "Estado: ${status.status}"
-                            }
-                        }
-                    } catch (e: Exception) {
-                        uploadMessage = "Error al enviar los audios: ${e.message}"
-                    } finally {
-                        uploading = false
-                    }
-                }
-            },
-            enabled = !uploading,
-            modifier = Modifier.padding(top = 24.dp)
-        ) {
-            Text(if (uploading) "Enviando..." else "Analizar")
         }
 
         uploadMessage?.let {
@@ -221,18 +179,196 @@ private fun NewAnalysisScreen(
             )
         }
 
-        jobId?.let {
+        if (analysisResult == null) {
+            Button(
+                onClick = {
+                    val reference = referenceUri
+                    val rehearsal = rehearsalUri
+
+                    if (reference == null || rehearsal == null) {
+                        uploadMessage = "Select both audio files."
+                        return@Button
+                    }
+
+                    scope.launch {
+                        uploadPhase = UploadPhase.UPLOADING_REFERENCE
+                        uploadMessage = null
+                        jobId = null
+
+                        try {
+                            val referenceFile = audioFileReader.read(reference)
+                            apiClient.uploadReference(
+                                coroId = "demo",
+                                audioFile = referenceFile
+                            )
+
+                            uploadPhase = UploadPhase.UPLOADING_REHEARSAL
+                            val rehearsalFile = audioFileReader.read(rehearsal)
+                            jobId = apiClient.uploadRehearsal(
+                                coroId = "demo",
+                                audioFile = rehearsalFile
+                            )
+
+                            uploadPhase = UploadPhase.ANALYZING
+                            var status = apiClient.getStatus(jobId!!)
+
+                            while (status.status == "PENDIENTE" || status.status == "PROCESANDO") {
+                                delay(2000)
+                                status = apiClient.getStatus(jobId!!)
+                            }
+
+                            if (status.status == "LISTO") {
+                                analysisResult = apiClient.getResult(jobId!!)
+                                uploadPhase = UploadPhase.ANALYSIS_READY
+                                uploadMessage = "Analysis ready. ${analysisResult!!.segments.size} segments detected."
+                            } else {
+                                uploadPhase = UploadPhase.IDLE
+                                uploadMessage = when (status.status) {
+                                    "ERROR" -> "Analysis error."
+                                    else -> "Status: ${status.status}"
+                                }
+                            }
+                        } catch (e: Exception) {
+                            uploadPhase = UploadPhase.IDLE
+                            uploadMessage = "Error uploading audio files: ${e.message}"
+                        }
+                    }
+                },
+                enabled = !isBusy && referenceUri != null && rehearsalUri != null,
+                modifier = Modifier
+                    .padding(top = 24.dp)
+                    .fillMaxWidth()
+            ) {
+                Text(
+                    when (uploadPhase) {
+                        UploadPhase.IDLE -> "Analyze"
+                        UploadPhase.UPLOADING_REFERENCE -> "Uploading reference..."
+                        UploadPhase.UPLOADING_REHEARSAL -> "Uploading rehearsal..."
+                        UploadPhase.ANALYZING -> "Analyzing..."
+                        UploadPhase.ANALYSIS_READY -> "Analysis ready"
+                    }
+                )
+            }
+        }
+
+        if (analysisResult != null) {
+            AnalysisResultView(
+                result = analysisResult!!,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f)
+                    .padding(top = 20.dp)
+            )
+        }
+
+        if (jobId != null && analysisResult == null) {
             Text(
-                text = "Job ID: $it",
+                text = "Job ID: $jobId",
                 modifier = Modifier.padding(top = 8.dp)
             )
         }
 
+        Spacer(modifier = Modifier.height(16.dp))
+
         Button(
             onClick = onBack,
-            modifier = Modifier.padding(top = 16.dp)
+            modifier = Modifier.fillMaxWidth()
         ) {
-            Text("Volver")
+            Text("Back")
         }
     }
+}
+
+@Composable
+private fun AnalysisResultView(
+    result: AnalysisResultResponse,
+    modifier: Modifier = Modifier
+) {
+    Column(
+        modifier = modifier
+    ) {
+        Text(
+            text = "Analysis results",
+            style = MaterialTheme.typography.titleLarge
+        )
+
+        Text(
+            text = "${result.segments.size} segments",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(top = 4.dp)
+        )
+
+        LazyColumn(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(top = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            itemsIndexed(result.segments) { index, segment ->
+                Card(
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(
+                        modifier = Modifier.padding(16.dp)
+                    ) {
+                        Text(
+                            text = "Segment ${index + 1}",
+                            style = MaterialTheme.typography.titleMedium
+                        )
+
+                        Spacer(modifier = Modifier.height(12.dp))
+
+                        SegmentField(
+                            label = "Reference",
+                            value = "${formatOneDecimal(segment.startReferenceTimestampSec)} – ${formatOneDecimal(segment.endReferenceTimestampSec)} s"
+                        )
+                        SegmentField(
+                            label = "Rehearsal",
+                            value = "${formatOneDecimal(segment.startPerformanceTimestampSec)} – ${formatOneDecimal(segment.endPerformanceTimestampSec)} s"
+                        )
+                        SegmentField(
+                            label = "Mean deviation",
+                            value = "${formatOneDecimal(segment.meanDeviationCents)} cents"
+                        )
+                        SegmentField(
+                            label = "Maximum deviation",
+                            value = "${formatOneDecimal(segment.maxDeviationCents)} cents"
+                        )
+                        SegmentField(
+                            label = "Severity",
+                            value = segment.severity
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun SegmentField(
+    label: String,
+    value: String
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 4.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelLarge
+        )
+        Text(
+            text = value,
+            style = MaterialTheme.typography.bodyMedium
+        )
+    }
+}
+
+private fun formatOneDecimal(value: Double): String {
+    return ((value * 10.0).toInt() / 10.0).toString()
 }
