@@ -21,6 +21,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.rubengarcia.choircorrector.api.AnalysisResultResponse
 import com.rubengarcia.choircorrector.billing.RevenueCatManager
+import com.revenuecat.purchases.kmp.Purchases
 import com.rubengarcia.choircorrector.api.CorrectorCoroApiClient
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -121,6 +122,11 @@ private fun HomeScreen(
                 style = MaterialTheme.typography.bodyMedium
             )
         }
+
+        Text(
+            text = Purchases.sharedInstance.appUserID,
+            style = MaterialTheme.typography.bodySmall
+        )
 
         Spacer(modifier = Modifier.height(16.dp))
 
