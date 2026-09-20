@@ -36,6 +36,11 @@ android {
     namespace = "com.rubengarcia.choircorrector"
     compileSdk = 35
 
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
+    }
+
     buildFeatures {
         buildConfig = true
     }
