@@ -77,19 +77,13 @@ private fun HomeScreen(
     revenueCatManager: RevenueCatManager,
     onNewAnalysis: () -> Unit
 ) {
-    var subscriptionState by remember { mutableStateOf<String?>(null) }
-    var purchaseBusy by remember { mutableStateOf(false) }
-    val scope = rememberCoroutineScope()
+    var isPro by remember { mutableStateOf<Boolean?>(null) }
 
     LaunchedEffect(Unit) {
-        subscriptionState = try {
-            if (revenueCatManager.isProActive()) {
-                "pro"
-            } else {
-                "free"
-            }
-        } catch (e: Exception) {
-            "error: ${e.message ?: "unknown error"}"
+        isPro = try {
+            revenueCatManager.isProActive()
+        } catch (_: Exception) {
+            false
         }
     }
 
@@ -111,24 +105,19 @@ private fun HomeScreen(
             modifier = Modifier.padding(top = 8.dp, bottom = 24.dp)
         )
 
-        when {
-            subscriptionState == "pro" -> Text(
+        when (isPro) {
+            true -> Text(
                 text = "Choir Corrector Pro",
                 style = MaterialTheme.typography.titleMedium
             )
 
-            subscriptionState == "free" -> Text(
+            false -> Text(
                 text = "Free plan",
                 style = MaterialTheme.typography.titleMedium
             )
 
-            subscriptionState == null -> Text(
+            null -> Text(
                 text = "Checking subscription...",
-                style = MaterialTheme.typography.bodyMedium
-            )
-
-            else -> Text(
-                text = subscriptionState ?: "Subscription check failed",
                 style = MaterialTheme.typography.bodyMedium
             )
         }
@@ -136,36 +125,8 @@ private fun HomeScreen(
         Spacer(modifier = Modifier.height(16.dp))
 
         Button(
-            onClick = {
-                scope.launch {
-                    purchaseBusy = true
-                    subscriptionState = "Starting purchase..."
-
-                    try {
-                        subscriptionState =
-                            if (revenueCatManager.purchasePro()) {
-                                "pro"
-                            } else {
-                                "free"
-                            }
-                    } catch (e: Exception) {
-                        subscriptionState =
-                            "error: ${e.message ?: "unknown error"}"
-                    } finally {
-                        purchaseBusy = false
-                    }
-                }
-            },
-            enabled = !purchaseBusy
-        ) {
-            Text("Test Purchase")
-        }
-
-        Spacer(modifier = Modifier.height(8.dp))
-
-        Button(
             onClick = onNewAnalysis,
-            enabled = subscriptionState == "pro" || subscriptionState == "free"
+            enabled = isPro != null
         ) {
             Text("New analysis")
         }
