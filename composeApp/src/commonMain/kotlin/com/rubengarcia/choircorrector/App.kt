@@ -78,6 +78,8 @@ private fun HomeScreen(
     onNewAnalysis: () -> Unit
 ) {
     var subscriptionState by remember { mutableStateOf<String?>(null) }
+    var purchaseBusy by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
 
     LaunchedEffect(Unit) {
         subscriptionState = try {
@@ -134,8 +136,36 @@ private fun HomeScreen(
         Spacer(modifier = Modifier.height(16.dp))
 
         Button(
+            onClick = {
+                scope.launch {
+                    purchaseBusy = true
+                    subscriptionState = "Starting purchase..."
+
+                    try {
+                        subscriptionState =
+                            if (revenueCatManager.purchasePro()) {
+                                "pro"
+                            } else {
+                                "free"
+                            }
+                    } catch (e: Exception) {
+                        subscriptionState =
+                            "error: ${e.message ?: "unknown error"}"
+                    } finally {
+                        purchaseBusy = false
+                    }
+                }
+            },
+            enabled = !purchaseBusy
+        ) {
+            Text("Test Purchase")
+        }
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        Button(
             onClick = onNewAnalysis,
-            enabled = subscriptionState != null && !subscriptionState!!.startsWith("error:")
+            enabled = subscriptionState == "pro" || subscriptionState == "free"
         ) {
             Text("New analysis")
         }
