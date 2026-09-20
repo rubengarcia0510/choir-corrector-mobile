@@ -25,6 +25,22 @@ class RevenueCatManager {
             )
         }
 
+    suspend fun restorePurchases(): Boolean =
+        suspendCancellableCoroutine { continuation ->
+            Purchases.sharedInstance.restorePurchases(
+                onError = { error ->
+                    continuation.resumeWithException(
+                        IllegalStateException(error.message)
+                    )
+                },
+                onSuccess = { customerInfo: CustomerInfo ->
+                    continuation.resume(
+                        customerInfo.entitlements.active.containsKey("choir_corrector_pro")
+                    )
+                }
+            )
+        }
+
     suspend fun purchasePro(): Boolean =
         suspendCancellableCoroutine { continuation ->
             Purchases.sharedInstance.getProducts(

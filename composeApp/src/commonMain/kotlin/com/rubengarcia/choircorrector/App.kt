@@ -136,6 +136,22 @@ private fun HomeScreen(
         ) {
             Text("New analysis")
         }
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        Button(
+            onClick = {
+                scope.launch {
+                    isPro = try {
+                        revenueCatManager.restorePurchases()
+                    } catch (_: Exception) {
+                        false
+                    }
+                }
+            }
+        ) {
+            Text("Restore Purchases")
+        }
     }
 }
 
