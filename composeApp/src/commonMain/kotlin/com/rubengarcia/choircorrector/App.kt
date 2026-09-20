@@ -77,13 +77,17 @@ private fun HomeScreen(
     revenueCatManager: RevenueCatManager,
     onNewAnalysis: () -> Unit
 ) {
-    var isPro by remember { mutableStateOf<Boolean?>(null) }
+    var subscriptionState by remember { mutableStateOf<String?>(null) }
 
     LaunchedEffect(Unit) {
-        isPro = try {
-            revenueCatManager.isProActive()
-        } catch (_: Exception) {
-            false
+        subscriptionState = try {
+            if (revenueCatManager.isProActive()) {
+                "pro"
+            } else {
+                "free"
+            }
+        } catch (e: Exception) {
+            "error: ${e.message ?: "unknown error"}"
         }
     }
 
@@ -105,19 +109,24 @@ private fun HomeScreen(
             modifier = Modifier.padding(top = 8.dp, bottom = 24.dp)
         )
 
-        when (isPro) {
-            true -> Text(
+        when {
+            subscriptionState == "pro" -> Text(
                 text = "Choir Corrector Pro",
                 style = MaterialTheme.typography.titleMedium
             )
 
-            false -> Text(
+            subscriptionState == "free" -> Text(
                 text = "Free plan",
                 style = MaterialTheme.typography.titleMedium
             )
 
-            null -> Text(
+            subscriptionState == null -> Text(
                 text = "Checking subscription...",
+                style = MaterialTheme.typography.bodyMedium
+            )
+
+            else -> Text(
+                text = subscriptionState ?: "Subscription check failed",
                 style = MaterialTheme.typography.bodyMedium
             )
         }
@@ -126,7 +135,7 @@ private fun HomeScreen(
 
         Button(
             onClick = onNewAnalysis,
-            enabled = isPro != null
+            enabled = subscriptionState != null && !subscriptionState!!.startsWith("error:")
         ) {
             Text("New analysis")
         }
