@@ -21,7 +21,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.rubengarcia.choircorrector.api.AnalysisResultResponse
 import com.rubengarcia.choircorrector.billing.RevenueCatManager
-import com.revenuecat.purchases.kmp.Purchases
 import com.rubengarcia.choircorrector.api.CorrectorCoroApiClient
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -133,21 +132,6 @@ private fun HomeScreen(
             Text("New analysis")
         }
 
-        Spacer(modifier = Modifier.height(8.dp))
-
-        Button(
-            onClick = {
-                scope.launch {
-                    isPro = try {
-                        revenueCatManager.restorePurchases()
-                    } catch (_: Exception) {
-                        false
-                    }
-                }
-            }
-        ) {
-            Text("Restore Purchases")
-        }
     }
 }
 
