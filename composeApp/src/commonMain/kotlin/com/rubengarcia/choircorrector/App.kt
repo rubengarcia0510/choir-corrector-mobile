@@ -12,16 +12,21 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedCard
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.rubengarcia.choircorrector.api.AnalysisResultResponse
-import com.rubengarcia.choircorrector.billing.RevenueCatManager
+import com.rubengarcia.choircorrector.api.ChromaIntonationSegment
 import com.rubengarcia.choircorrector.api.CorrectorCoroApiClient
+import com.rubengarcia.choircorrector.billing.RevenueCatManager
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -123,7 +128,6 @@ private fun HomeScreen(
             )
         }
 
-
         Spacer(modifier = Modifier.height(16.dp))
 
         if (isPro == false) {
@@ -136,8 +140,7 @@ private fun HomeScreen(
                             false
                         }
                     }
-                },
-                enabled = true
+                }
             ) {
                 Text("Upgrade to Pro")
             }
@@ -165,7 +168,6 @@ private fun HomeScreen(
         ) {
             Text("New analysis")
         }
-
     }
 }
 
@@ -177,241 +179,513 @@ private fun NewAnalysisScreen(
     onBack: () -> Unit
 ) {
     var referenceUri by remember { mutableStateOf<String?>(null) }
-    val scope = rememberCoroutineScope()
     var rehearsalUri by remember { mutableStateOf<String?>(null) }
     var uploadPhase by remember { mutableStateOf(UploadPhase.IDLE) }
     var uploadMessage by remember { mutableStateOf<String?>(null) }
-    var jobId by remember { mutableStateOf<String?>(null) }
     var analysisResult by remember { mutableStateOf<AnalysisResultResponse?>(null) }
 
-    val isBusy = uploadPhase != UploadPhase.IDLE && uploadPhase != UploadPhase.ANALYSIS_READY
+    val scope = rememberCoroutineScope()
 
-    Column(
+    val isBusy = uploadPhase != UploadPhase.IDLE &&
+        uploadPhase != UploadPhase.ANALYSIS_READY
+
+    LazyColumn(
         modifier = Modifier
             .fillMaxSize()
-            .padding(24.dp)
+            .padding(horizontal = 20.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        Text(
-            text = "New analysis",
-            style = MaterialTheme.typography.headlineMedium
-        )
-
-        Text(
-            text = "Select both audio files.",
-            style = MaterialTheme.typography.bodyLarge,
-            modifier = Modifier.padding(top = 8.dp, bottom = 24.dp)
-        )
-
-        Button(
-            onClick = {
-                audioFilePicker.pickAudio { uri ->
-                    referenceUri = uri
-                }
-            },
-            enabled = !isBusy,
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Text("Select reference")
-        }
-
-        referenceUri?.let {
-            Text(
-                text = "Reference selected",
-                modifier = Modifier.padding(top = 8.dp)
-            )
-        }
-
-        Spacer(modifier = Modifier.height(12.dp))
-
-        Button(
-            onClick = {
-                audioFilePicker.pickAudio { uri ->
-                    rehearsalUri = uri
-                }
-            },
-            enabled = !isBusy,
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Text("Select rehearsal")
-        }
-
-        rehearsalUri?.let {
-            Text(
-                text = "Rehearsal selected",
-                modifier = Modifier.padding(top = 8.dp)
-            )
-        }
-
-        uploadMessage?.let {
-            Text(
-                text = it,
-                modifier = Modifier.padding(top = 12.dp)
-            )
-        }
-
-        if (analysisResult == null) {
-            Button(
-                onClick = {
-                    val reference = referenceUri
-                    val rehearsal = rehearsalUri
-
-                    if (reference == null || rehearsal == null) {
-                        uploadMessage = "Select both audio files."
-                        return@Button
-                    }
-
-                    scope.launch {
-                        uploadPhase = UploadPhase.UPLOADING_REFERENCE
-                        uploadMessage = null
-                        jobId = null
-
-                        try {
-                            val referenceFile = audioFileReader.read(reference)
-                            apiClient.uploadReference(
-                                coroId = "demo",
-                                audioFile = referenceFile
-                            )
-
-                            uploadPhase = UploadPhase.UPLOADING_REHEARSAL
-                            val rehearsalFile = audioFileReader.read(rehearsal)
-                            jobId = apiClient.uploadRehearsal(
-                                coroId = "demo",
-                                audioFile = rehearsalFile
-                            )
-
-                            uploadPhase = UploadPhase.ANALYZING
-                            var status = apiClient.getStatus(jobId!!)
-
-                            while (status.status == "PENDIENTE" || status.status == "PROCESANDO") {
-                                delay(2000)
-                                status = apiClient.getStatus(jobId!!)
-                            }
-
-                            if (status.status == "LISTO") {
-                                analysisResult = apiClient.getResult(jobId!!)
-                                uploadPhase = UploadPhase.ANALYSIS_READY
-                                uploadMessage = "Analysis ready. ${analysisResult!!.segments.size} segments detected."
-                            } else {
-                                uploadPhase = UploadPhase.IDLE
-                                uploadMessage = when (status.status) {
-                                    "ERROR" -> "Analysis error."
-                                    else -> "Status: ${status.status}"
-                                }
-                            }
-                        } catch (e: Exception) {
-                            uploadPhase = UploadPhase.IDLE
-                            uploadMessage = "Error uploading audio files: ${e.message}"
-                        }
-                    }
-                },
-                enabled = !isBusy && referenceUri != null && rehearsalUri != null,
-                modifier = Modifier
-                    .padding(top = 24.dp)
-                    .fillMaxWidth()
+        item {
+            Column(
+                modifier = Modifier.padding(top = 24.dp)
             ) {
                 Text(
-                    when (uploadPhase) {
-                        UploadPhase.IDLE -> "Analyze"
-                        UploadPhase.UPLOADING_REFERENCE -> "Uploading reference..."
-                        UploadPhase.UPLOADING_REHEARSAL -> "Uploading rehearsal..."
-                        UploadPhase.ANALYZING -> "Analyzing..."
-                        UploadPhase.ANALYSIS_READY -> "Analysis ready"
-                    }
+                    text = "New analysis",
+                    style = MaterialTheme.typography.headlineMedium
+                )
+
+                Text(
+                    text = "Compare a reference recording with a rehearsal.",
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(top = 6.dp)
                 )
             }
         }
 
+        item {
+            OutlinedCard(
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(
+                    modifier = Modifier.padding(16.dp)
+                ) {
+                    Text(
+                        text = "1. Reference audio",
+                        style = MaterialTheme.typography.titleMedium
+                    )
+
+                    Text(
+                        text = "The recording used as the musical reference.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(top = 4.dp)
+                    )
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    Button(
+                        onClick = {
+                            audioFilePicker.pickAudio { uri ->
+                                referenceUri = uri
+                                uploadMessage = null
+                            }
+                        },
+                        enabled = !isBusy,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(
+                            if (referenceUri == null) {
+                                "Select reference"
+                            } else {
+                                "Change reference"
+                            }
+                        )
+                    }
+
+                    if (referenceUri != null) {
+                        Text(
+                            text = "✓ Reference selected",
+                            style = MaterialTheme.typography.bodyMedium,
+                            modifier = Modifier.padding(top = 10.dp)
+                        )
+                    }
+                }
+            }
+        }
+
+        item {
+            OutlinedCard(
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(
+                    modifier = Modifier.padding(16.dp)
+                ) {
+                    Text(
+                        text = "2. Rehearsal audio",
+                        style = MaterialTheme.typography.titleMedium
+                    )
+
+                    Text(
+                        text = "The choir recording you want to evaluate.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(top = 4.dp)
+                    )
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    Button(
+                        onClick = {
+                            audioFilePicker.pickAudio { uri ->
+                                rehearsalUri = uri
+                                uploadMessage = null
+                            }
+                        },
+                        enabled = !isBusy,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(
+                            if (rehearsalUri == null) {
+                                "Select rehearsal"
+                            } else {
+                                "Change rehearsal"
+                            }
+                        )
+                    }
+
+                    if (rehearsalUri != null) {
+                        Text(
+                            text = "✓ Rehearsal selected",
+                            style = MaterialTheme.typography.bodyMedium,
+                            modifier = Modifier.padding(top = 10.dp)
+                        )
+                    }
+                }
+            }
+        }
+
+        item {
+            OutlinedCard(
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(
+                    modifier = Modifier.padding(16.dp)
+                ) {
+                    Text(
+                        text = "3. Analysis",
+                        style = MaterialTheme.typography.titleMedium
+                    )
+
+                    Text(
+                        text = "Upload both recordings and compare them.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(top = 4.dp)
+                    )
+
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    AnalysisProgress(
+                        phase = uploadPhase,
+                        message = uploadMessage
+                    )
+
+                    if (analysisResult == null) {
+                        Spacer(modifier = Modifier.height(16.dp))
+
+                        Button(
+                            onClick = {
+                                val reference = referenceUri
+                                val rehearsal = rehearsalUri
+
+                                if (reference == null || rehearsal == null) {
+                                    uploadMessage = "Select both audio files before starting."
+                                    return@Button
+                                }
+
+                                scope.launch {
+                                    uploadPhase = UploadPhase.UPLOADING_REFERENCE
+                                    uploadMessage = null
+
+                                    try {
+                                        val referenceFile =
+                                            audioFileReader.read(reference)
+
+                                        apiClient.uploadReference(
+                                            coroId = "demo",
+                                            audioFile = referenceFile
+                                        )
+
+                                        uploadPhase = UploadPhase.UPLOADING_REHEARSAL
+
+                                        val rehearsalFile =
+                                            audioFileReader.read(rehearsal)
+
+                                        val jobId = apiClient.uploadRehearsal(
+                                            coroId = "demo",
+                                            audioFile = rehearsalFile
+                                        )
+
+                                        uploadPhase = UploadPhase.ANALYZING
+
+                                        var status =
+                                            apiClient.getStatus(jobId)
+
+                                        while (
+                                            status.status == "PENDIENTE" ||
+                                            status.status == "PROCESANDO"
+                                        ) {
+                                            delay(2000)
+                                            status = apiClient.getStatus(jobId)
+                                        }
+
+                                        if (status.status == "LISTO") {
+                                            val result =
+                                                apiClient.getResult(jobId)
+
+                                            analysisResult = result
+                                            uploadPhase =
+                                                UploadPhase.ANALYSIS_READY
+                                            uploadMessage =
+                                                "Analysis completed successfully."
+                                        } else {
+                                            uploadPhase = UploadPhase.IDLE
+
+                                            uploadMessage =
+                                                when (status.status) {
+                                                    "ERROR" ->
+                                                        "The backend reported an analysis error."
+
+                                                    else ->
+                                                        "Analysis finished with status: ${status.status}"
+                                                }
+                                        }
+                                    } catch (e: Exception) {
+                                        uploadPhase = UploadPhase.IDLE
+                                        uploadMessage =
+                                            "We couldn't complete the analysis. Check your connection and try again."
+                                    }
+                                }
+                            },
+                            enabled = !isBusy &&
+                                referenceUri != null &&
+                                rehearsalUri != null,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text(
+                                when (uploadPhase) {
+                                    UploadPhase.ANALYSIS_READY ->
+                                        "Analysis ready"
+
+                                    else ->
+                                        "Start analysis"
+                                }
+                            )
+                        }
+                    }
+                }
+            }
+        }
+
         if (analysisResult != null) {
-            AnalysisResultView(
-                result = analysisResult!!,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .weight(1f)
-                    .padding(top = 20.dp)
-            )
+            item {
+                AnalysisResultSummary(
+                    result = analysisResult!!
+                )
+            }
+
+            item {
+                Text(
+                    text = "Detected segments",
+                    style = MaterialTheme.typography.titleLarge
+                )
+            }
+
+            itemsIndexed(analysisResult!!.segments) { index, segment ->
+                SegmentCard(
+                    index = index,
+                    segment = segment
+                )
+            }
         }
 
-        if (jobId != null && analysisResult == null) {
-            Text(
-                text = "Job ID: $jobId",
-                modifier = Modifier.padding(top = 8.dp)
-            )
-        }
+        item {
+            Spacer(modifier = Modifier.height(4.dp))
 
-        Spacer(modifier = Modifier.height(16.dp))
+            TextButton(
+                onClick = onBack,
+                enabled = !isBusy,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text("Back")
+            }
 
-        Button(
-            onClick = onBack,
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Text("Back")
+            Spacer(modifier = Modifier.height(16.dp))
         }
     }
 }
 
 @Composable
-private fun AnalysisResultView(
-    result: AnalysisResultResponse,
-    modifier: Modifier = Modifier
+private fun AnalysisProgress(
+    phase: UploadPhase,
+    message: String?
 ) {
-    Column(
-        modifier = modifier
+    when (phase) {
+        UploadPhase.IDLE -> {
+            Text(
+                text = message ?: "Ready to analyze.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = if (message != null) {
+                    MaterialTheme.colorScheme.error
+                } else {
+                    MaterialTheme.colorScheme.onSurfaceVariant
+                }
+            )
+        }
+
+        UploadPhase.UPLOADING_REFERENCE -> {
+            ProgressRow(
+                title = "Uploading reference",
+                detail = "Sending the reference recording..."
+            )
+        }
+
+        UploadPhase.UPLOADING_REHEARSAL -> {
+            ProgressRow(
+                title = "Uploading rehearsal",
+                detail = "Sending the rehearsal recording..."
+            )
+        }
+
+        UploadPhase.ANALYZING -> {
+            ProgressRow(
+                title = "Analyzing",
+                detail = "Comparing pitch and timing..."
+            )
+        }
+
+        UploadPhase.ANALYSIS_READY -> {
+            Text(
+                text = "✓ Analysis ready",
+                style = MaterialTheme.typography.bodyLarge
+            )
+
+            if (message != null) {
+                Text(
+                    text = message,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(top = 4.dp)
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun ProgressRow(
+    title: String,
+    detail: String
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        CircularProgressIndicator(
+            modifier = Modifier.padding(end = 16.dp)
+        )
+
+        Column {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.titleSmall
+            )
+
+            Text(
+                text = detail,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = 2.dp)
+            )
+        }
+    }
+}
+
+@Composable
+private fun AnalysisResultSummary(
+    result: AnalysisResultResponse
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(
+            modifier = Modifier.padding(18.dp)
+        ) {
+            Text(
+                text = "Analysis results",
+                style = MaterialTheme.typography.titleLarge
+            )
+
+            Text(
+                text = "Your rehearsal has been compared with the reference.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = 4.dp)
+            )
+
+            HorizontalDivider(
+                modifier = Modifier.padding(vertical = 16.dp)
+            )
+
+            SummaryMetric(
+                label = "Detected segments",
+                value = result.segments.size.toString()
+            )
+
+            if (result.segments.isNotEmpty()) {
+                val averageDeviation =
+                    result.segments
+                        .map { it.meanDeviationCents }
+                        .average()
+
+                val maximumDeviation =
+                    result.segments
+                        .maxOf { it.maxDeviationCents }
+
+                SummaryMetric(
+                    label = "Average deviation",
+                    value = "${formatOneDecimal(averageDeviation)} cents"
+                )
+
+                SummaryMetric(
+                    label = "Maximum deviation",
+                    value = "${formatOneDecimal(maximumDeviation)} cents"
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun SummaryMetric(
+    label: String,
+    value: String
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 5.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
     ) {
         Text(
-            text = "Analysis results",
-            style = MaterialTheme.typography.titleLarge
+            text = label,
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
         )
 
         Text(
-            text = "${result.segments.size} segments",
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(top = 4.dp)
+            text = value,
+            style = MaterialTheme.typography.titleSmall
         )
+    }
+}
 
-        LazyColumn(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(top = 12.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
+@Composable
+private fun SegmentCard(
+    index: Int,
+    segment: ChromaIntonationSegment
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp)
         ) {
-            itemsIndexed(result.segments) { index, segment ->
-                Card(
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Column(
-                        modifier = Modifier.padding(16.dp)
-                    ) {
-                        Text(
-                            text = "Segment ${index + 1}",
-                            style = MaterialTheme.typography.titleMedium
-                        )
+            Text(
+                text = "Segment ${index + 1}",
+                style = MaterialTheme.typography.titleMedium
+            )
 
-                        Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(12.dp))
 
-                        SegmentField(
-                            label = "Reference",
-                            value = "${formatOneDecimal(segment.startReferenceTimestampSec)} – ${formatOneDecimal(segment.endReferenceTimestampSec)} s"
-                        )
-                        SegmentField(
-                            label = "Rehearsal",
-                            value = "${formatOneDecimal(segment.startPerformanceTimestampSec)} – ${formatOneDecimal(segment.endPerformanceTimestampSec)} s"
-                        )
-                        SegmentField(
-                            label = "Mean deviation",
-                            value = "${formatOneDecimal(segment.meanDeviationCents)} cents"
-                        )
-                        SegmentField(
-                            label = "Maximum deviation",
-                            value = "${formatOneDecimal(segment.maxDeviationCents)} cents"
-                        )
-                        SegmentField(
-                            label = "Severity",
-                            value = segment.severity
-                        )
-                    }
-                }
-            }
+            SegmentField(
+                label = "Reference",
+                value = "${formatOneDecimal(segment.startReferenceTimestampSec)} – " +
+                    "${formatOneDecimal(segment.endReferenceTimestampSec)} s"
+            )
+
+            SegmentField(
+                label = "Rehearsal",
+                value = "${formatOneDecimal(segment.startPerformanceTimestampSec)} – " +
+                    "${formatOneDecimal(segment.endPerformanceTimestampSec)} s"
+            )
+
+            SegmentField(
+                label = "Mean deviation",
+                value = "${formatOneDecimal(segment.meanDeviationCents)} cents"
+            )
+
+            SegmentField(
+                label = "Maximum deviation",
+                value = "${formatOneDecimal(segment.maxDeviationCents)} cents"
+            )
+
+            SegmentField(
+                label = "Severity",
+                value = segment.severity
+            )
         }
     }
 }
@@ -432,6 +706,7 @@ private fun SegmentField(
             text = label,
             style = MaterialTheme.typography.labelLarge
         )
+
         Text(
             text = value,
             style = MaterialTheme.typography.bodyMedium
