@@ -16,6 +16,7 @@ kotlin {
         }
 
         commonMain.dependencies {
+            implementation("com.revenuecat.purchases:purchases-kmp-core:3.7.0")
             implementation(compose.runtime)
             implementation(compose.foundation)
             implementation(compose.material3)
