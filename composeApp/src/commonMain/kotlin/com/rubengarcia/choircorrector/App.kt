@@ -79,7 +79,6 @@ private fun HomeScreen(
     onNewAnalysis: () -> Unit
 ) {
     var isPro by remember { mutableStateOf<Boolean?>(null) }
-    val scope = rememberCoroutineScope()
 
     LaunchedEffect(Unit) {
         isPro = try {
@@ -124,10 +123,6 @@ private fun HomeScreen(
             )
         }
 
-        Text(
-            text = Purchases.sharedInstance.appUserID,
-            style = MaterialTheme.typography.bodySmall
-        )
 
         Spacer(modifier = Modifier.height(16.dp))
 
@@ -164,12 +159,12 @@ private fun NewAnalysisScreen(
     onBack: () -> Unit
 ) {
     var referenceUri by remember { mutableStateOf<String?>(null) }
+    val scope = rememberCoroutineScope()
     var rehearsalUri by remember { mutableStateOf<String?>(null) }
     var uploadPhase by remember { mutableStateOf(UploadPhase.IDLE) }
     var uploadMessage by remember { mutableStateOf<String?>(null) }
     var jobId by remember { mutableStateOf<String?>(null) }
     var analysisResult by remember { mutableStateOf<AnalysisResultResponse?>(null) }
-    val scope = rememberCoroutineScope()
 
     val isBusy = uploadPhase != UploadPhase.IDLE && uploadPhase != UploadPhase.ANALYSIS_READY
 
