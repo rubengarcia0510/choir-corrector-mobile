@@ -126,6 +126,25 @@ private fun HomeScreen(
 
         Spacer(modifier = Modifier.height(16.dp))
 
+        if (isPro == false) {
+            Button(
+                onClick = {
+                    scope.launch {
+                        isPro = try {
+                            revenueCatManager.purchasePro()
+                        } catch (_: Exception) {
+                            false
+                        }
+                    }
+                },
+                enabled = true
+            ) {
+                Text("Upgrade to Pro")
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+        }
+
         Button(
             onClick = {
                 scope.launch {
