@@ -79,6 +79,7 @@ private fun HomeScreen(
     onNewAnalysis: () -> Unit
 ) {
     var isPro by remember { mutableStateOf<Boolean?>(null) }
+    val scope = rememberCoroutineScope()
 
     LaunchedEffect(Unit) {
         isPro = try {
