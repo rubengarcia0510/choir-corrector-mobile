@@ -78,6 +78,7 @@ private fun HomeScreen(
     onNewAnalysis: () -> Unit
 ) {
     var isPro by remember { mutableStateOf<Boolean?>(null) }
+    val scope = rememberCoroutineScope()
 
     LaunchedEffect(Unit) {
         isPro = try {
@@ -126,7 +127,21 @@ private fun HomeScreen(
         Spacer(modifier = Modifier.height(16.dp))
 
         Button(
-            onClick = onNewAnalysis,
+            onClick = {
+                scope.launch {
+                    val active = try {
+                        revenueCatManager.isProActive()
+                    } catch (_: Exception) {
+                        false
+                    }
+
+                    isPro = active
+
+                    if (active) {
+                        onNewAnalysis()
+                    }
+                }
+            },
             enabled = isPro == true
         ) {
             Text("New analysis")
