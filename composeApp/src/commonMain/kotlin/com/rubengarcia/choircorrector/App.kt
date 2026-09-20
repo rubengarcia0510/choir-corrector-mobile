@@ -127,7 +127,7 @@ private fun HomeScreen(
 
         Button(
             onClick = onNewAnalysis,
-            enabled = isPro != null
+            enabled = isPro == true
         ) {
             Text("New analysis")
         }
