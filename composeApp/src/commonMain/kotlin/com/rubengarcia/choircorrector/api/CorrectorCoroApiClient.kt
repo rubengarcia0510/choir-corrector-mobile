@@ -19,6 +19,11 @@ class CorrectorCoroApiClient(
     private val httpClient: HttpClient
 ) {
 
+    suspend fun checkHealth(): Boolean {
+        val response = httpClient.get("$baseUrl/health")
+        return response.status == HttpStatusCode.OK
+    }
+
     suspend fun uploadReference(
         coroId: String,
         audioFile: AudioFile

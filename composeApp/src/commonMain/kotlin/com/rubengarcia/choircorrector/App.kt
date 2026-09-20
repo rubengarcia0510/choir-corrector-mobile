@@ -38,6 +38,15 @@ private enum class UploadPhase {
     ANALYSIS_READY
 }
 
+private enum class BackendState {
+    CONNECTING,
+    READY,
+    UNAVAILABLE
+}
+
+private const val HEALTH_CHECK_RETRIES = 10
+private const val HEALTH_CHECK_DELAY_MS = 3_000L
+
 @Composable
 fun App(
     audioFilePicker: AudioFilePicker,
@@ -45,7 +54,31 @@ fun App(
     apiClient: CorrectorCoroApiClient
 ) {
     var screen by remember { mutableStateOf(Screen.HOME) }
+    var backendState by remember { mutableStateOf(BackendState.CONNECTING) }
+    var healthCheckKey by remember { mutableStateOf(0) }
+
     val revenueCatManager = remember { RevenueCatManager() }
+
+    LaunchedEffect(healthCheckKey) {
+        backendState = BackendState.CONNECTING
+
+        repeat(HEALTH_CHECK_RETRIES) { attempt ->
+            try {
+                if (apiClient.checkHealth()) {
+                    backendState = BackendState.READY
+                    return@LaunchedEffect
+                }
+            } catch (_: Exception) {
+                // Retry while Render is waking up or the network is unavailable.
+            }
+
+            if (attempt < HEALTH_CHECK_RETRIES - 1) {
+                delay(HEALTH_CHECK_DELAY_MS)
+            }
+        }
+
+        backendState = BackendState.UNAVAILABLE
+    }
 
     MaterialTheme {
         Surface(
@@ -54,6 +87,10 @@ fun App(
             when (screen) {
                 Screen.HOME -> HomeScreen(
                     revenueCatManager = revenueCatManager,
+                    backendState = backendState,
+                    onRetryBackend = {
+                        healthCheckKey++
+                    },
                     onNewAnalysis = {
                         screen = Screen.NEW_ANALYSIS
                     }
@@ -75,6 +112,8 @@ fun App(
 @Composable
 private fun HomeScreen(
     revenueCatManager: RevenueCatManager,
+    backendState: BackendState,
+    onRetryBackend: () -> Unit,
     onNewAnalysis: () -> Unit
 ) {
     var isPro by remember { mutableStateOf<Boolean?>(null) }
@@ -123,6 +162,38 @@ private fun HomeScreen(
             )
         }
 
+        Spacer(modifier = Modifier.height(16.dp))
+
+        when (backendState) {
+            BackendState.CONNECTING -> {
+                Text(
+                    text = "Connecting to Choir Corrector...",
+                    style = MaterialTheme.typography.bodyMedium
+                )
+            }
+
+            BackendState.READY -> {
+                Text(
+                    text = "Backend ready",
+                    style = MaterialTheme.typography.bodyMedium
+                )
+            }
+
+            BackendState.UNAVAILABLE -> {
+                Text(
+                    text = "Backend unavailable. Check your connection and try again.",
+                    style = MaterialTheme.typography.bodyMedium
+                )
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                Button(
+                    onClick = onRetryBackend
+                ) {
+                    Text("Retry")
+                }
+            }
+        }
 
         Spacer(modifier = Modifier.height(16.dp))
 
@@ -156,16 +227,15 @@ private fun HomeScreen(
 
                     isPro = active
 
-                    if (active) {
+                    if (active && backendState == BackendState.READY) {
                         onNewAnalysis()
                     }
                 }
             },
-            enabled = isPro == true
+            enabled = isPro == true && backendState == BackendState.READY
         ) {
             Text("New analysis")
         }
-
     }
 }
 
