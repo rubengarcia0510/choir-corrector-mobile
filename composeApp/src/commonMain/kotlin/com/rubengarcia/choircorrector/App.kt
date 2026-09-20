@@ -20,6 +20,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.rubengarcia.choircorrector.api.AnalysisResultResponse
+import com.rubengarcia.choircorrector.billing.RevenueCatManager
 import com.rubengarcia.choircorrector.api.CorrectorCoroApiClient
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -44,6 +45,7 @@ fun App(
     apiClient: CorrectorCoroApiClient
 ) {
     var screen by remember { mutableStateOf(Screen.HOME) }
+    val revenueCatManager = remember { RevenueCatManager() }
 
     MaterialTheme {
         Surface(
@@ -51,6 +53,7 @@ fun App(
         ) {
             when (screen) {
                 Screen.HOME -> HomeScreen(
+                    revenueCatManager = revenueCatManager,
                     onNewAnalysis = {
                         screen = Screen.NEW_ANALYSIS
                     }
@@ -71,8 +74,20 @@ fun App(
 
 @Composable
 private fun HomeScreen(
+    revenueCatManager: RevenueCatManager,
     onNewAnalysis: () -> Unit
 ) {
+    var isPro by remember { mutableStateOf<Boolean?>(null) }
+    val scope = rememberCoroutineScope()
+
+    LaunchedEffect(Unit) {
+        isPro = try {
+            revenueCatManager.isProActive()
+        } catch (_: Exception) {
+            false
+        }
+    }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -91,11 +106,66 @@ private fun HomeScreen(
             modifier = Modifier.padding(top = 8.dp, bottom = 24.dp)
         )
 
+        when (isPro) {
+            true -> Text(
+                text = "Choir Corrector Pro",
+                style = MaterialTheme.typography.titleMedium
+            )
+
+            false -> Text(
+                text = "Free plan",
+                style = MaterialTheme.typography.titleMedium
+            )
+
+            null -> Text(
+                text = "Checking subscription...",
+                style = MaterialTheme.typography.bodyMedium
+            )
+        }
+
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        if (isPro == false) {
+            Button(
+                onClick = {
+                    scope.launch {
+                        isPro = try {
+                            revenueCatManager.purchasePro()
+                        } catch (_: Exception) {
+                            false
+                        }
+                    }
+                },
+                enabled = true
+            ) {
+                Text("Upgrade to Pro")
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+        }
+
         Button(
-            onClick = onNewAnalysis
+            onClick = {
+                scope.launch {
+                    val active = try {
+                        revenueCatManager.isProActive()
+                    } catch (_: Exception) {
+                        false
+                    }
+
+                    isPro = active
+
+                    if (active) {
+                        onNewAnalysis()
+                    }
+                }
+            },
+            enabled = isPro == true
         ) {
             Text("New analysis")
         }
+
     }
 }
 
@@ -107,12 +177,12 @@ private fun NewAnalysisScreen(
     onBack: () -> Unit
 ) {
     var referenceUri by remember { mutableStateOf<String?>(null) }
+    val scope = rememberCoroutineScope()
     var rehearsalUri by remember { mutableStateOf<String?>(null) }
     var uploadPhase by remember { mutableStateOf(UploadPhase.IDLE) }
     var uploadMessage by remember { mutableStateOf<String?>(null) }
     var jobId by remember { mutableStateOf<String?>(null) }
     var analysisResult by remember { mutableStateOf<AnalysisResultResponse?>(null) }
-    val scope = rememberCoroutineScope()
 
     val isBusy = uploadPhase != UploadPhase.IDLE && uploadPhase != UploadPhase.ANALYSIS_READY
 
