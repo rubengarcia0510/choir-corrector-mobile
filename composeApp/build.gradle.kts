@@ -36,11 +36,30 @@ android {
     namespace = "com.rubengarcia.choircorrector"
     compileSdk = 35
 
+    buildFeatures {
+        buildConfig = true
+    }
+
     defaultConfig {
         applicationId = "com.rubengarcia.choircorrector"
         minSdk = 26
         targetSdk = 35
         versionCode = 1
         versionName = "0.1.0"
+    }
+
+    buildTypes {
+        getByName("debug") {
+            val revenueCatTestStoreApiKey =
+                System.getenv("REVENUECAT_TEST_STORE_API_KEY")
+                    ?: project.findProperty("REVENUECAT_TEST_STORE_API_KEY")?.toString()
+                    ?: ""
+
+            buildConfigField(
+                "String",
+                "REVENUECAT_TEST_STORE_API_KEY",
+                "\"$revenueCatTestStoreApiKey\""
+            )
+        }
     }
 }
