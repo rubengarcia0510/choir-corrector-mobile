@@ -20,6 +20,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.rubengarcia.choircorrector.api.AnalysisResultResponse
+import com.rubengarcia.choircorrector.billing.RevenueCatManager
 import com.rubengarcia.choircorrector.api.CorrectorCoroApiClient
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -44,6 +45,7 @@ fun App(
     apiClient: CorrectorCoroApiClient
 ) {
     var screen by remember { mutableStateOf(Screen.HOME) }
+    val revenueCatManager = remember { RevenueCatManager() }
 
     MaterialTheme {
         Surface(
@@ -51,6 +53,7 @@ fun App(
         ) {
             when (screen) {
                 Screen.HOME -> HomeScreen(
+                    revenueCatManager = revenueCatManager,
                     onNewAnalysis = {
                         screen = Screen.NEW_ANALYSIS
                     }
@@ -71,8 +74,13 @@ fun App(
 
 @Composable
 private fun HomeScreen(
+    revenueCatManager: RevenueCatManager,
     onNewAnalysis: () -> Unit
 ) {
+    var premiumStatus by remember { mutableStateOf<String?>(null) }
+    var billingBusy by remember { mutableStateOf(false) }
+    val billingScope = rememberCoroutineScope()
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -95,6 +103,68 @@ private fun HomeScreen(
             onClick = onNewAnalysis
         ) {
             Text("New analysis")
+        }
+
+        Spacer(modifier = Modifier.height(24.dp))
+
+        Text(
+            text = "RevenueCat test",
+            style = MaterialTheme.typography.titleMedium
+        )
+
+        Button(
+            onClick = {
+                billingScope.launch {
+                    billingBusy = true
+                    premiumStatus = null
+                    try {
+                        premiumStatus =
+                            if (revenueCatManager.isProActive()) {
+                                "Premium entitlement: ACTIVE"
+                            } else {
+                                "Premium entitlement: INACTIVE"
+                            }
+                    } catch (e: Exception) {
+                        premiumStatus = "RevenueCat error: ${e.message}"
+                    } finally {
+                        billingBusy = false
+                    }
+                }
+            },
+            enabled = !billingBusy
+        ) {
+            Text("Check Premium")
+        }
+
+        Button(
+            onClick = {
+                billingScope.launch {
+                    billingBusy = true
+                    premiumStatus = "Starting purchase..."
+                    try {
+                        premiumStatus =
+                            if (revenueCatManager.purchasePro()) {
+                                "Purchase successful - Premium ACTIVE"
+                            } else {
+                                "Purchase completed - Premium INACTIVE"
+                            }
+                    } catch (e: Exception) {
+                        premiumStatus = "Purchase error: ${e.message}"
+                    } finally {
+                        billingBusy = false
+                    }
+                }
+            },
+            enabled = !billingBusy
+        ) {
+            Text("Test Purchase")
+        }
+
+        premiumStatus?.let {
+            Text(
+                text = it,
+                modifier = Modifier.padding(top = 8.dp)
+            )
         }
     }
 }
