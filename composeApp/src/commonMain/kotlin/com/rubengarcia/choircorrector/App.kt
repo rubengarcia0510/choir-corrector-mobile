@@ -38,6 +38,13 @@ private enum class UploadPhase {
     ANALYSIS_READY
 }
 
+private enum class SubscriptionState {
+    CHECKING,
+    PRO,
+    FREE,
+    ERROR
+}
+
 @Composable
 fun App(
     audioFilePicker: AudioFilePicker,
@@ -77,15 +84,29 @@ private fun HomeScreen(
     revenueCatManager: RevenueCatManager,
     onNewAnalysis: () -> Unit
 ) {
-    var isPro by remember { mutableStateOf<Boolean?>(null) }
+    var subscriptionState by remember {
+        mutableStateOf(SubscriptionState.CHECKING)
+    }
     val scope = rememberCoroutineScope()
 
-    LaunchedEffect(Unit) {
-        isPro = try {
-            revenueCatManager.isProActive()
-        } catch (_: Exception) {
-            false
+    fun refreshSubscription() {
+        scope.launch {
+            subscriptionState = SubscriptionState.CHECKING
+
+            subscriptionState = try {
+                if (revenueCatManager.isProActive()) {
+                    SubscriptionState.PRO
+                } else {
+                    SubscriptionState.FREE
+                }
+            } catch (_: Exception) {
+                SubscriptionState.ERROR
+            }
         }
+    }
+
+    LaunchedEffect(Unit) {
+        refreshSubscription()
     }
 
     Column(
@@ -106,66 +127,93 @@ private fun HomeScreen(
             modifier = Modifier.padding(top = 8.dp, bottom = 24.dp)
         )
 
-        when (isPro) {
-            true -> Text(
+        when (subscriptionState) {
+            SubscriptionState.PRO -> Text(
                 text = "Choir Corrector Pro",
                 style = MaterialTheme.typography.titleMedium
             )
 
-            false -> Text(
+            SubscriptionState.FREE -> Text(
                 text = "Free plan",
                 style = MaterialTheme.typography.titleMedium
             )
 
-            null -> Text(
+            SubscriptionState.CHECKING -> Text(
                 text = "Checking subscription...",
+                style = MaterialTheme.typography.bodyMedium
+            )
+
+            SubscriptionState.ERROR -> Text(
+                text = "Unable to verify subscription.",
                 style = MaterialTheme.typography.bodyMedium
             )
         }
 
-
         Spacer(modifier = Modifier.height(16.dp))
 
-        if (isPro == false) {
-            Button(
-                onClick = {
-                    scope.launch {
-                        isPro = try {
-                            revenueCatManager.purchasePro()
-                        } catch (_: Exception) {
-                            false
+        when (subscriptionState) {
+            SubscriptionState.FREE -> {
+                Button(
+                    onClick = {
+                        scope.launch {
+                            subscriptionState = SubscriptionState.CHECKING
+
+                            subscriptionState = try {
+                                if (revenueCatManager.purchasePro()) {
+                                    SubscriptionState.PRO
+                                } else {
+                                    SubscriptionState.FREE
+                                }
+                            } catch (_: Exception) {
+                                SubscriptionState.ERROR
+                            }
                         }
-                    }
-                },
-                enabled = true
-            ) {
-                Text("Upgrade to Pro")
+                    },
+                    enabled = true
+                ) {
+                    Text("Upgrade to Pro")
+                }
+
+                Spacer(modifier = Modifier.height(8.dp))
             }
 
-            Spacer(modifier = Modifier.height(8.dp))
+            SubscriptionState.ERROR -> {
+                Button(
+                    onClick = ::refreshSubscription
+                ) {
+                    Text("Retry")
+                }
+
+                Spacer(modifier = Modifier.height(8.dp))
+            }
+
+            else -> Unit
         }
 
         Button(
             onClick = {
                 scope.launch {
-                    val active = try {
-                        revenueCatManager.isProActive()
+                    subscriptionState = SubscriptionState.CHECKING
+
+                    subscriptionState = try {
+                        if (revenueCatManager.isProActive()) {
+                            SubscriptionState.PRO
+                        } else {
+                            SubscriptionState.FREE
+                        }
                     } catch (_: Exception) {
-                        false
+                        SubscriptionState.ERROR
                     }
 
-                    isPro = active
-
-                    if (active) {
+                    if (subscriptionState == SubscriptionState.PRO) {
                         onNewAnalysis()
                     }
                 }
             },
-            enabled = isPro == true
+            enabled = subscriptionState == SubscriptionState.PRO
         ) {
             Text("New analysis")
         }
-
     }
 }
 
