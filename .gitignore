@@ -25,3 +25,9 @@ build
 
 # Ignore Kotlin plugin data
 .kotlin
+
+# Local Android release signing key
+*.jks
+*.keystore
+
+keystore.properties

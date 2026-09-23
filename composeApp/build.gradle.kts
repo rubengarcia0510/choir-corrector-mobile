@@ -1,3 +1,5 @@
+import java.util.Properties
+
 plugins {
     id("org.jetbrains.kotlin.multiplatform")
     id("org.jetbrains.kotlin.plugin.compose")
@@ -32,6 +34,15 @@ kotlin {
     }
 }
 
+val keystorePropertiesFile = rootProject.file("keystore.properties")
+val keystoreProperties = Properties()
+
+if (keystorePropertiesFile.exists()) {
+    keystorePropertiesFile.inputStream().use {
+        keystoreProperties.load(it)
+    }
+}
+
 android {
     namespace = "com.rubengarcia.choircorrector"
     compileSdk = 35
@@ -53,8 +64,36 @@ android {
         versionName = "0.1.0"
     }
 
+    signingConfigs {
+        create("release") {
+            if (keystorePropertiesFile.exists()) {
+                storeFile = rootProject.file(keystoreProperties["storeFile"] as String)
+                storePassword = keystoreProperties["storePassword"] as String
+                keyAlias = keystoreProperties["keyAlias"] as String
+                keyPassword = keystoreProperties["keyPassword"] as String
+            }
+        }
+    }
+
     buildTypes {
         getByName("debug") {
+            val revenueCatTestStoreApiKey =
+                System.getenv("REVENUECAT_TEST_STORE_API_KEY")
+                    ?: project.findProperty("REVENUECAT_TEST_STORE_API_KEY")?.toString()
+                    ?: ""
+
+            buildConfigField(
+                "String",
+                "REVENUECAT_TEST_STORE_API_KEY",
+                "\"$revenueCatTestStoreApiKey\""
+            )
+        }
+
+        getByName("release") {
+            if (keystorePropertiesFile.exists()) {
+                signingConfig = signingConfigs.getByName("release")
+            }
+
             val revenueCatTestStoreApiKey =
                 System.getenv("REVENUECAT_TEST_STORE_API_KEY")
                     ?: project.findProperty("REVENUECAT_TEST_STORE_API_KEY")?.toString()
