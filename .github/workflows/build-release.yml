@@ -1,0 +1,58 @@
+name: Build release AAB
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build-release:
+    runs-on: ubuntu-latest
+
+    env:
+      REVENUECAT_TEST_STORE_API_KEY: ${{ secrets.REVENUECAT_TEST_STORE_API_KEY }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Restore Android upload keystore
+        env:
+          ANDROID_UPLOAD_KEYSTORE: ${{ secrets.ANDROID_UPLOAD_KEYSTORE }}
+        run: |
+          echo "$ANDROID_UPLOAD_KEYSTORE" | base64 --decode > choir-corrector-upload.jks
+
+      - name: Create signing properties
+        env:
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          cat > keystore.properties <<EOF_PROPERTIES
+          storeFile=choir-corrector-upload.jks
+          storePassword=$ANDROID_KEYSTORE_PASSWORD
+          keyAlias=$ANDROID_KEY_ALIAS
+          keyPassword=$ANDROID_KEY_PASSWORD
+          EOF_PROPERTIES
+
+      - name: Grant execute permission for Gradle
+        run: chmod +x gradlew
+
+      - name: Build release AAB
+        run: ./gradlew bundleRelease --stacktrace
+
+      - name: Upload release AAB
+        uses: actions/upload-artifact@v4
+        with:
+          name: choir-corrector-release
+          path: composeApp/build/outputs/bundle/release/composeApp-release.aab
+
+      - name: Cleanup signing files
+        if: always()
+        run: |
+          rm -f choir-corrector-upload.jks
+          rm -f keystore.properties
