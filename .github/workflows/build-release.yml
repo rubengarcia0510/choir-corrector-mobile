@@ -1,6 +1,9 @@
 name: Build release AAB
 
 on:
+  push:
+    branches:
+      - feat/CDM-19-release-signing
   workflow_dispatch:
 
 jobs:
